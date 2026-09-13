@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Analysis Dashboard{% endblock %}
+{% block content %}
+
+<!--
+  ANTIGRAVITY MISSION TARGET (Module 5: Dashboard and Report Generation)
+  This is a functional but plain dashboard. Ask your agent to:
+  - Add a visual score gauge/progress ring instead of plain progress bars
+  - Add a chart (e.g. Chart.js) for the score breakdown
+  - Add a "Download report as PDF" button
+  Keep the Jinja variables (analysis.*) — just improve the presentation.
+-->
+
+<h3 class="mb-4">Analysis for: {{ analysis.filename }} <small class="text-muted">({{ analysis.target_role }})</small></h3>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5>Resume Score</h5>
+                <div class="progress mb-2" style="height: 25px;">
+                    <div class="progress-bar bg-success" style="width: {{ analysis.resume_score }}%">
+                        {{ analysis.resume_score }}/100
+                    </div>
+                </div>
+                <ul class="list-group list-group-flush mt-3">
+                    {% for key, value in analysis.score_breakdown.items() %}
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>{{ key.replace('_', ' ')|title }}</span>
+                            <strong>{{ value }}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5>ATS Compatibility ({{ analysis.target_role }})</h5>
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar bg-info" style="width: {{ analysis.ats_score }}%">
+                        {{ analysis.ats_score }}%
+                    </div>
+                </div>
+                <h6>Missing Keywords</h6>
+                {% if analysis.missing_keywords %}
+                    {% for kw in analysis.missing_keywords %}
+                        <span class="badge bg-danger me-1 mb-1">{{ kw }}</span>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-success">No missing keywords — great match!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5>Improvement Suggestions</h5>
+                <ul>
+                    {% for suggestion in analysis.suggestions %}
+                        <li>{{ suggestion }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<a href="{{ url_for('index') }}" class="btn btn-outline-secondary mt-4">Analyze another resume</a>
+
+{% endblock %}

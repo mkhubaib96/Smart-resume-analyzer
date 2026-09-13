@@ -1,0 +1,18 @@
+{
+  "Data Analyst": [
+    "SQL", "Excel", "Python", "Power BI", "Tableau", "Statistics",
+    "Data Visualization", "Pandas", "NumPy", "A/B Testing"
+  ],
+  "Web Developer": [
+    "HTML", "CSS", "JavaScript", "React", "Node.js", "REST API",
+    "Git", "Responsive Design", "TypeScript", "MongoDB"
+  ],
+  "AI Engineer": [
+    "Python", "Machine Learning", "TensorFlow", "PyTorch", "NLP",
+    "Scikit-learn", "Deep Learning", "Data Preprocessing", "Model Deployment", "Pandas"
+  ],
+  "Cloud Engineer": [
+    "AWS", "Azure", "GCP", "Docker", "Kubernetes", "CI/CD",
+    "Terraform", "Linux", "Cloud Security", "Networking"
+  ]
+}

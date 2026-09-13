@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block content %}
+<h4 class="mb-3">Past Analyses</h4>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Filename</th>
+            <th>Target Role</th>
+            <th>Resume Score</th>
+            <th>ATS Score</th>
+            <th>Date</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in records %}
+        <tr>
+            <td>{{ r.filename }}</td>
+            <td>{{ r.target_role }}</td>
+            <td>{{ r.resume_score }}</td>
+            <td>{{ r.ats_score }}</td>
+            <td>{{ r.created_at[:19] }}</td>
+            <td><a href="{{ url_for('dashboard', analysis_id=r.id) }}" class="btn btn-sm btn-outline-primary">View</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted">No analyses yet.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
