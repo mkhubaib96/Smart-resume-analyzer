@@ -1,75 +1,284 @@
 {% extends "base.html" %}
-{% block title %}Analysis Dashboard{% endblock %}
+{% block title %}Analysis Dashboard — {{ analysis.filename }}{% endblock %}
 {% block content %}
 
-<!--
-  ANTIGRAVITY MISSION TARGET (Module 5: Dashboard and Report Generation)
-  This is a functional but plain dashboard. Ask your agent to:
-  - Add a visual score gauge/progress ring instead of plain progress bars
-  - Add a chart (e.g. Chart.js) for the score breakdown
-  - Add a "Download report as PDF" button
-  Keep the Jinja variables (analysis.*) — just improve the presentation.
--->
+{# ── Print stylesheet (hides nav, buttons, and chart controls in print view) ── #}
+<style>
+  /* ── Score ring ── */
+  .score-ring-wrap {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .score-ring {
+    position: relative;
+    width: 110px;
+    height: 110px;
+    flex-shrink: 0;
+  }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring .ring-track { fill: none; stroke: #e9ecef; stroke-width: 10; }
+  .score-ring .ring-fill  { fill: none; stroke-width: 10; stroke-linecap: round;
+                             transition: stroke-dashoffset 1s ease; }
+  .score-ring .ring-label {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-weight: 700; line-height: 1.1;
+  }
+  .score-ring .ring-label span:first-child { font-size: 1.6rem; }
+  .score-ring .ring-label span:last-child  { font-size: 0.65rem; color: #6c757d; }
 
-<h3 class="mb-4">Analysis for: {{ analysis.filename }} <small class="text-muted">({{ analysis.target_role }})</small></h3>
+  /* ── Chart card ── */
+  #breakdownChart { max-height: 260px; }
 
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h5>Resume Score</h5>
-                <div class="progress mb-2" style="height: 25px;">
-                    <div class="progress-bar bg-success" style="width: {{ analysis.resume_score }}%">
-                        {{ analysis.resume_score }}/100
-                    </div>
-                </div>
-                <ul class="list-group list-group-flush mt-3">
-                    {% for key, value in analysis.score_breakdown.items() %}
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>{{ key.replace('_', ' ')|title }}</span>
-                            <strong>{{ value }}</strong>
-                        </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
+  /* ── Badges for matched keywords ── */
+  .badge-matched { background-color: #198754 !important; }
 
-    <div class="col-md-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-body">
-                <h5>ATS Compatibility ({{ analysis.target_role }})</h5>
-                <div class="progress mb-3" style="height: 25px;">
-                    <div class="progress-bar bg-info" style="width: {{ analysis.ats_score }}%">
-                        {{ analysis.ats_score }}%
-                    </div>
-                </div>
-                <h6>Missing Keywords</h6>
-                {% if analysis.missing_keywords %}
-                    {% for kw in analysis.missing_keywords %}
-                        <span class="badge bg-danger me-1 mb-1">{{ kw }}</span>
-                    {% endfor %}
-                {% else %}
-                    <p class="text-success">No missing keywords — great match!</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+  /* ── Print rules ── */
+  @media print {
+    .navbar, .no-print { display: none !important; }
+    .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+    body { font-size: 12pt; }
+    .print-full { width: 100% !important; max-width: 100% !important; }
+  }
+</style>
 
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h5>Improvement Suggestions</h5>
-                <ul>
-                    {% for suggestion in analysis.suggestions %}
-                        <li>{{ suggestion }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
+{# ── Page header ── #}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-4">
+  <div>
+    <h3 class="mb-0">{{ analysis.filename }}</h3>
+    <small class="text-muted">Role: <strong>{{ analysis.target_role }}</strong></small>
+  </div>
+  <button class="btn btn-outline-primary no-print" onclick="window.print()">
+    🖨️ Download / Print PDF
+  </button>
 </div>
 
-<a href="{{ url_for('index') }}" class="btn btn-outline-secondary mt-4">Analyze another resume</a>
+{# ── Row 1: Resume score + ATS score ── #}
+<div class="row g-4">
+  {# Resume Score card #}
+  <div class="col-md-6 print-full">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Resume Score</h5>
+
+        {# Animated score ring #}
+        {% set score = analysis.resume_score %}
+        {% set colour = '#198754' if score >= 70 else ('#fd7e14' if score >= 40 else '#dc3545') %}
+        <div class="score-ring-wrap">
+          <div class="score-ring">
+            <svg viewBox="0 0 110 110" width="110" height="110">
+              <circle class="ring-track" cx="55" cy="55" r="47"/>
+              <circle class="ring-fill"
+                      cx="55" cy="55" r="47"
+                      stroke="{{ colour }}"
+                      stroke-dasharray="295.31"
+                      stroke-dashoffset="{{ 295.31 * (1 - score / 100) | round(2) }}"
+                      id="resumeRing"/>
+            </svg>
+            <div class="ring-label">
+              <span>{{ score }}</span>
+              <span>/ 100</span>
+            </div>
+          </div>
+          <div>
+            <p class="mb-1 fw-semibold">
+              {% if score >= 70 %}Strong resume
+              {% elif score >= 40 %}Needs improvement
+              {% else %}Significant gaps found{% endif %}
+            </p>
+            <small class="text-muted">Based on structure, skills, education,<br>projects, contact info &amp; completeness.</small>
+          </div>
+        </div>
+
+        {# Score breakdown list #}
+        <h6 class="mt-2 mb-2 text-muted" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;">Breakdown</h6>
+        <ul class="list-group list-group-flush">
+          {% for key, value in analysis.score_breakdown.items() %}
+            {% set maxes = {'structure': 20, 'skills_section': 20, 'education': 15, 'projects': 15, 'contact_info': 15, 'completeness': 15} %}
+            {% set max_val = maxes.get(key, 20) %}
+            {% set pct = ((value / max_val) * 100) | round | int %}
+            {% set bar_color = 'bg-success' if pct >= 70 else ('bg-warning' if pct >= 40 else 'bg-danger') %}
+            <li class="list-group-item px-0 py-2">
+              <div class="d-flex justify-content-between mb-1">
+                <small>{{ key.replace('_', ' ') | title }}</small>
+                <small class="text-muted">{{ value }}&thinsp;/&thinsp;{{ max_val }}</small>
+              </div>
+              <div class="progress" style="height:6px;">
+                <div class="progress-bar {{ bar_color }}" style="width:{{ pct }}%;"></div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  {# ATS Compatibility card #}
+  <div class="col-md-6 print-full">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-3">ATS Compatibility — {{ analysis.target_role }}</h5>
+
+        {% set ats = analysis.ats_score %}
+        {% set ats_colour = '#198754' if ats >= 70 else ('#fd7e14' if ats >= 40 else '#dc3545') %}
+        <div class="score-ring-wrap">
+          <div class="score-ring">
+            <svg viewBox="0 0 110 110" width="110" height="110">
+              <circle class="ring-track" cx="55" cy="55" r="47"/>
+              <circle class="ring-fill"
+                      cx="55" cy="55" r="47"
+                      stroke="{{ ats_colour }}"
+                      stroke-dasharray="295.31"
+                      stroke-dashoffset="{{ 295.31 * (1 - ats / 100) | round(2) }}"
+                      id="atsRing"/>
+            </svg>
+            <div class="ring-label">
+              <span>{{ ats }}%</span>
+              <span>ATS</span>
+            </div>
+          </div>
+          <div>
+            <p class="mb-1 fw-semibold">
+              {% if ats >= 70 %}Good keyword match
+              {% elif ats >= 40 %}Partial match
+              {% else %}Low keyword match{% endif %}
+            </p>
+            <small class="text-muted">Keywords matched against the<br><strong>{{ analysis.target_role }}</strong> role profile.</small>
+          </div>
+        </div>
+
+        {% if analysis.matched_keywords %}
+          <h6 class="mt-3 mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">Matched</h6>
+          <div class="mb-3">
+            {% for kw in analysis.matched_keywords %}
+              <span class="badge badge-matched me-1 mb-1">{{ kw }}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if analysis.missing_keywords %}
+          <h6 class="mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">Missing</h6>
+          <div>
+            {% for kw in analysis.missing_keywords %}
+              <span class="badge bg-danger me-1 mb-1">{{ kw }}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-success mt-3 mb-0">✅ No missing keywords — great match!</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>{# /row 1 #}
+
+{# ── Row 2: Chart.js bar chart ── #}
+<div class="row g-4 mt-0">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Score Breakdown Chart</h5>
+        <canvas id="breakdownChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Row 3: Improvement suggestions ── #}
+<div class="row g-4 mt-0">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title">Improvement Suggestions</h5>
+        {% if analysis.suggestions %}
+          <ol class="mb-0">
+            {% for suggestion in analysis.suggestions %}
+              <li class="mb-2">{{ suggestion }}</li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="text-success mb-0">✅ Your resume looks great — no major issues found!</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Footer actions ── #}
+<div class="d-flex gap-2 mt-4 no-print">
+  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">⬅ Analyze another resume</a>
+  <button class="btn btn-outline-primary" onclick="window.print()">🖨️ Download / Print PDF</button>
+</div>
+
+{# ── Chart.js ── #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  // Pull breakdown data from Jinja into JS
+  const labels = [
+    {% for key in analysis.score_breakdown.keys() %}
+      "{{ key.replace('_', ' ') | title }}"{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+  const values = [
+    {% for value in analysis.score_breakdown.values() %}
+      {{ value }}{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ];
+  const maxValues = { "Structure": 20, "Skills Section": 20, "Education": 15,
+                      "Projects": 15, "Contact Info": 15, "Completeness": 15 };
+
+  // Colour bars green/amber/red by % of max
+  const bgColors = labels.map((label, i) => {
+    const max = maxValues[label] || 20;
+    const pct = values[i] / max;
+    if (pct >= 0.7) return 'rgba(25, 135, 84, 0.8)';   // green
+    if (pct >= 0.4) return 'rgba(253, 126, 20, 0.8)';  // amber
+    return 'rgba(220, 53, 69, 0.8)';                    // red
+  });
+
+  const ctx = document.getElementById('breakdownChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Score',
+        data: values,
+        backgroundColor: bgColors,
+        borderRadius: 6,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const max = maxValues[ctx.label] || 20;
+              return ` ${ctx.parsed.y} / ${max}`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 20,
+          ticks: { stepSize: 5 },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
+})();
+</script>
 
 {% endblock %}
