@@ -11,37 +11,83 @@
     gap: 1.25rem;
     margin-bottom: 1rem;
   }
+
   .score-ring {
     position: relative;
     width: 110px;
     height: 110px;
     flex-shrink: 0;
   }
-  .score-ring svg { transform: rotate(-90deg); }
-  .score-ring .ring-track { fill: none; stroke: #e9ecef; stroke-width: 10; }
-  .score-ring .ring-fill  { fill: none; stroke-width: 10; stroke-linecap: round;
-                             transition: stroke-dashoffset 1s ease; }
-  .score-ring .ring-label {
-    position: absolute; inset: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    font-weight: 700; line-height: 1.1;
+
+  .score-ring svg {
+    transform: rotate(-90deg);
   }
-  .score-ring .ring-label span:first-child { font-size: 1.6rem; }
-  .score-ring .ring-label span:last-child  { font-size: 0.65rem; color: #6c757d; }
+
+  .score-ring .ring-track {
+    fill: none;
+    stroke: #e9ecef;
+    stroke-width: 10;
+  }
+
+  .score-ring .ring-fill {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease;
+  }
+
+  .score-ring .ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  .score-ring .ring-label span:first-child {
+    font-size: 1.6rem;
+  }
+
+  .score-ring .ring-label span:last-child {
+    font-size: 0.65rem;
+    color: #6c757d;
+  }
 
   /* ── Chart card ── */
-  #breakdownChart { max-height: 260px; }
+  #breakdownChart {
+    max-height: 260px;
+  }
 
   /* ── Badges for matched keywords ── */
-  .badge-matched { background-color: #198754 !important; }
+  .badge-matched {
+    background-color: #198754 !important;
+  }
 
   /* ── Print rules ── */
   @media print {
-    .navbar, .no-print { display: none !important; }
-    .card { break-inside: avoid; box-shadow: none !important; border: 1px solid #dee2e6 !important; }
-    body { font-size: 12pt; }
-    .print-full { width: 100% !important; max-width: 100% !important; }
+
+    .navbar,
+    .no-print {
+      display: none !important;
+    }
+
+    .card {
+      break-inside: avoid;
+      box-shadow: none !important;
+      border: 1px solid #dee2e6 !important;
+    }
+
+    body {
+      font-size: 12pt;
+    }
+
+    .print-full {
+      width: 100% !important;
+      max-width: 100% !important;
+    }
   }
 </style>
 
@@ -70,13 +116,9 @@
         <div class="score-ring-wrap">
           <div class="score-ring">
             <svg viewBox="0 0 110 110" width="110" height="110">
-              <circle class="ring-track" cx="55" cy="55" r="47"/>
-              <circle class="ring-fill"
-                      cx="55" cy="55" r="47"
-                      stroke="{{ colour }}"
-                      stroke-dasharray="295.31"
-                      stroke-dashoffset="{{ 295.31 * (1 - score / 100) | round(2) }}"
-                      id="resumeRing"/>
+              <circle class="ring-track" cx="55" cy="55" r="47" />
+              <circle class="ring-fill" cx="55" cy="55" r="47" stroke="{{ colour }}" stroke-dasharray="295.31"
+                stroke-dashoffset="{{ 295.31 * (1 - score / 100) | round(2) }}" id="resumeRing" />
             </svg>
             <div class="ring-label">
               <span>{{ score }}</span>
@@ -89,27 +131,30 @@
               {% elif score >= 40 %}Needs improvement
               {% else %}Significant gaps found{% endif %}
             </p>
-            <small class="text-muted">Based on structure, skills, education,<br>projects, contact info &amp; completeness.</small>
+            <small class="text-muted">Based on structure, skills, education,<br>projects, contact info &amp;
+              completeness.</small>
           </div>
         </div>
 
         {# Score breakdown list #}
-        <h6 class="mt-2 mb-2 text-muted" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;">Breakdown</h6>
+        <h6 class="mt-2 mb-2 text-muted" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;">
+          Breakdown</h6>
         <ul class="list-group list-group-flush">
           {% for key, value in analysis.score_breakdown.items() %}
-            {% set maxes = {'structure': 20, 'skills_section': 20, 'education': 15, 'projects': 15, 'contact_info': 15, 'completeness': 15} %}
-            {% set max_val = maxes.get(key, 20) %}
-            {% set pct = ((value / max_val) * 100) | round | int %}
-            {% set bar_color = 'bg-success' if pct >= 70 else ('bg-warning' if pct >= 40 else 'bg-danger') %}
-            <li class="list-group-item px-0 py-2">
-              <div class="d-flex justify-content-between mb-1">
-                <small>{{ key.replace('_', ' ') | title }}</small>
-                <small class="text-muted">{{ value }}&thinsp;/&thinsp;{{ max_val }}</small>
-              </div>
-              <div class="progress" style="height:6px;">
-                <div class="progress-bar {{ bar_color }}" style="width:{{ pct }}%;"></div>
-              </div>
-            </li>
+          {% set maxes = {'structure': 20, 'skills_section': 20, 'education': 15, 'projects': 15, 'contact_info': 15,
+          'completeness': 15} %}
+          {% set max_val = maxes.get(key, 20) %}
+          {% set pct = ((value / max_val) * 100) | round | int %}
+          {% set bar_color = 'bg-success' if pct >= 70 else ('bg-warning' if pct >= 40 else 'bg-danger') %}
+          <li class="list-group-item px-0 py-2">
+            <div class="d-flex justify-content-between mb-1">
+              <small>{{ key.replace('_', ' ') | title }}</small>
+              <small class="text-muted">{{ value }}&thinsp;/&thinsp;{{ max_val }}</small>
+            </div>
+            <div class="progress" style="height:6px;">
+              <div class="progress-bar {{ bar_color }}" style="width:{{ pct }}%;"></div>
+            </div>
+          </li>
           {% endfor %}
         </ul>
       </div>
@@ -127,13 +172,9 @@
         <div class="score-ring-wrap">
           <div class="score-ring">
             <svg viewBox="0 0 110 110" width="110" height="110">
-              <circle class="ring-track" cx="55" cy="55" r="47"/>
-              <circle class="ring-fill"
-                      cx="55" cy="55" r="47"
-                      stroke="{{ ats_colour }}"
-                      stroke-dasharray="295.31"
-                      stroke-dashoffset="{{ 295.31 * (1 - ats / 100) | round(2) }}"
-                      id="atsRing"/>
+              <circle class="ring-track" cx="55" cy="55" r="47" />
+              <circle class="ring-fill" cx="55" cy="55" r="47" stroke="{{ ats_colour }}" stroke-dasharray="295.31"
+                stroke-dashoffset="{{ 295.31 * (1 - ats / 100) | round(2) }}" id="atsRing" />
             </svg>
             <div class="ring-label">
               <span>{{ ats }}%</span>
@@ -146,28 +187,31 @@
               {% elif ats >= 40 %}Partial match
               {% else %}Low keyword match{% endif %}
             </p>
-            <small class="text-muted">Keywords matched against the<br><strong>{{ analysis.target_role }}</strong> role profile.</small>
+            <small class="text-muted">Keywords matched against the<br><strong>{{ analysis.target_role }}</strong> role
+              profile.</small>
           </div>
         </div>
 
         {% if analysis.matched_keywords %}
-          <h6 class="mt-3 mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">Matched</h6>
-          <div class="mb-3">
-            {% for kw in analysis.matched_keywords %}
-              <span class="badge badge-matched me-1 mb-1">{{ kw }}</span>
-            {% endfor %}
-          </div>
+        <h6 class="mt-3 mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">
+          Matched</h6>
+        <div class="mb-3">
+          {% for kw in analysis.matched_keywords %}
+          <span class="badge badge-matched me-1 mb-1">{{ kw }}</span>
+          {% endfor %}
+        </div>
         {% endif %}
 
         {% if analysis.missing_keywords %}
-          <h6 class="mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">Missing</h6>
-          <div>
-            {% for kw in analysis.missing_keywords %}
-              <span class="badge bg-danger me-1 mb-1">{{ kw }}</span>
-            {% endfor %}
-          </div>
+        <h6 class="mb-1" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:.05em;color:#6c757d;">Missing
+        </h6>
+        <div>
+          {% for kw in analysis.missing_keywords %}
+          <span class="badge bg-danger me-1 mb-1">{{ kw }}</span>
+          {% endfor %}
+        </div>
         {% else %}
-          <p class="text-success mt-3 mb-0">✅ No missing keywords — great match!</p>
+        <p class="text-success mt-3 mb-0">✅ No missing keywords — great match!</p>
         {% endif %}
       </div>
     </div>
@@ -193,13 +237,13 @@
       <div class="card-body">
         <h5 class="card-title">Improvement Suggestions</h5>
         {% if analysis.suggestions %}
-          <ol class="mb-0">
-            {% for suggestion in analysis.suggestions %}
-              <li class="mb-2">{{ suggestion }}</li>
-            {% endfor %}
-          </ol>
+        <ol class="mb-0">
+          {% for suggestion in analysis.suggestions %}
+          <li class="mb-2">{{ suggestion }}</li>
+          {% endfor %}
+        </ol>
         {% else %}
-          <p class="text-success mb-0">✅ Your resume looks great — no major issues found!</p>
+        <p class="text-success mb-0">✅ Your resume looks great — no major issues found!</p>
         {% endif %}
       </div>
     </div>
@@ -215,20 +259,22 @@
 {# ── Chart.js ── #}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
-(function () {
-  // Pull breakdown data from Jinja into JS
-  const labels = [
-    {% for key in analysis.score_breakdown.keys() %}
-      "{{ key.replace('_', ' ') | title }}"{% if not loop.last %},{% endif %}
-    {% endfor %}
+  (function () {
+    // Pull breakdown data from Jinja into JS
+    const labels = [
+      {% for key in analysis.score_breakdown.keys() %}
+      "{{ key.replace('_', ' ') | title }}"{% if not loop.last %}, {% endif %}
+  {% endfor %}
   ];
   const values = [
     {% for value in analysis.score_breakdown.values() %}
-      {{ value }}{% if not loop.last %},{% endif %}
-    {% endfor %}
+  { { value } } {% if not loop.last %}, {% endif %}
+  {% endfor %}
   ];
-  const maxValues = { "Structure": 20, "Skills Section": 20, "Education": 15,
-                      "Projects": 15, "Contact Info": 15, "Completeness": 15 };
+  const maxValues = {
+    "Structure": 20, "Skills Section": 20, "Education": 15,
+    "Projects": 15, "Contact Info": 15, "Completeness": 15
+  };
 
   // Colour bars green/amber/red by % of max
   const bgColors = labels.map((label, i) => {
@@ -258,7 +304,7 @@
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: function(ctx) {
+            label: function (ctx) {
               const max = maxValues[ctx.label] || 20;
               return ` ${ctx.parsed.y} / ${max}`;
             }
@@ -278,7 +324,7 @@
       }
     }
   });
-})();
+}) ();
 </script>
 
 {% endblock %}
