@@ -260,21 +260,25 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script>
   (function () {
-    // Pull breakdown data from Jinja into JS
-    const labels = [
-      {% for key in analysis.score_breakdown.keys() %}
-      "{{ key.replace('_', ' ') | title }}"{% if not loop.last %}, {% endif %}
-  {% endfor %}
-  ];
-  const values = [
-    {% for value in analysis.score_breakdown.values() %}
-  { { value } } {% if not loop.last %}, {% endif %}
-  {% endfor %}
-  ];
+    // Pull breakdown data from Jinja safely
+    const breakdown = {{ analysis.score_breakdown | tojson | safe
+  }};
+
+  const labels = Object.keys(breakdown).map(k => {
+    return k.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  });
+  const values = Object.values(breakdown);
+
   const maxValues = {
     "Structure": 20, "Skills Section": 20, "Education": 15,
     "Projects": 15, "Contact Info": 15, "Completeness": 15
   };
+
+  // Calculate percentages for correctly scaled bars
+  const percentages = labels.map((label, i) => {
+    const max = maxValues[label] || 20;
+    return (values[i] / max) * 100;
+  });
 
   // Colour bars green/amber/red by % of max
   const bgColors = labels.map((label, i) => {
@@ -282,7 +286,7 @@
     const pct = values[i] / max;
     if (pct >= 0.7) return 'rgba(25, 135, 84, 0.8)';   // green
     if (pct >= 0.4) return 'rgba(253, 126, 20, 0.8)';  // amber
-    return 'rgba(220, 53, 69, 0.8)';                    // red
+    return 'rgba(220, 53, 69, 0.8)';                   // red
   });
 
   const ctx = document.getElementById('breakdownChart').getContext('2d');
@@ -292,7 +296,7 @@
       labels: labels,
       datasets: [{
         label: 'Score',
-        data: values,
+        data: percentages,
         backgroundColor: bgColors,
         borderRadius: 6,
         borderSkipped: false,
@@ -305,8 +309,10 @@
         tooltip: {
           callbacks: {
             label: function (ctx) {
-              const max = maxValues[ctx.label] || 20;
-              return ` ${ctx.parsed.y} / ${max}`;
+              const labelName = ctx.label;
+              const max = maxValues[labelName] || 20;
+              const actual = values[ctx.dataIndex];
+              return ` ${actual} / ${max}`;
             }
           }
         }
@@ -314,8 +320,13 @@
       scales: {
         y: {
           beginAtZero: true,
-          max: 20,
-          ticks: { stepSize: 5 },
+          max: 100,
+          ticks: {
+            stepSize: 20,
+            callback: function (value) {
+              return value + '%';
+            }
+          },
           grid: { color: 'rgba(0,0,0,0.05)' }
         },
         x: {
@@ -324,7 +335,7 @@
       }
     }
   });
-}) ();
+  }) ();
 </script>
 
 {% endblock %}
