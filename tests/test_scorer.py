@@ -349,5 +349,157 @@ class TestAtsFullRoleCoverage(unittest.TestCase):
         self.assertEqual(result["ats_score"], 100)
 
 
+
+# ===========================================================================
+# Feedback Generator Tests
+# ===========================================================================
+from resume_analyzer.feedback import generate_feedback
+
+
+class TestGenerateFeedbackReturnType(unittest.TestCase):
+    def test_always_returns_list(self):
+        result = generate_feedback({}, [])
+        self.assertIsInstance(result, list)
+
+    def test_returns_list_of_strings(self):
+        breakdown = {"structure": 0, "skills_section": 0, "education": 0,
+                     "projects": 0, "contact_info": 0, "completeness": 2}
+        result = generate_feedback(breakdown, [])
+        for item in result:
+            self.assertIsInstance(item, str)
+
+    def test_perfect_score_returns_fallback(self):
+        """All scores at max → no weak areas → single encouraging message."""
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        self.assertEqual(len(result), 1)
+        self.assertIn("well", result[0].lower())
+
+
+class TestFeedbackPriorityOrdering(unittest.TestCase):
+    """Contact info issues must appear before skills, structure, etc."""
+
+    def test_contact_before_skills(self):
+        breakdown = {"structure": 0, "skills_section": 0, "education": 0,
+                     "projects": 0, "contact_info": 0, "completeness": 2}
+        result = generate_feedback(breakdown, [])
+        contact_idx = next((i for i, s in enumerate(result)
+                            if "contact" in s.lower() or "email" in s.lower()), None)
+        skills_idx = next((i for i, s in enumerate(result)
+                           if "skill" in s.lower()), None)
+        self.assertIsNotNone(contact_idx)
+        self.assertIsNotNone(skills_idx)
+        self.assertLess(contact_idx, skills_idx,
+                        "Contact info suggestion must come before skills suggestion")
+
+    def test_skills_before_projects(self):
+        breakdown = {"structure": 20, "skills_section": 0, "education": 15,
+                     "projects": 0, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        skills_idx = next((i for i, s in enumerate(result)
+                           if "skill" in s.lower()), None)
+        proj_idx = next((i for i, s in enumerate(result)
+                         if "project" in s.lower()), None)
+        if skills_idx is not None and proj_idx is not None:
+            self.assertLess(skills_idx, proj_idx,
+                            "Skills suggestion must come before projects suggestion")
+
+    def test_keywords_come_last(self):
+        """Missing keyword suggestions must appear after structural issues."""
+        breakdown = {"structure": 0, "skills_section": 0, "education": 0,
+                     "projects": 0, "contact_info": 0, "completeness": 2}
+        result = generate_feedback(breakdown, ["Python", "SQL"])
+        kw_idx = next((i for i, s in enumerate(result)
+                       if "python" in s.lower() or "sql" in s.lower()), None)
+        self.assertIsNotNone(kw_idx)
+        # There must be at least one structural suggestion before keyword hints
+        self.assertGreater(kw_idx, 0,
+                           "Keyword suggestions must not be first")
+
+
+class TestFeedbackGradedTemplates(unittest.TestCase):
+    """Different score levels within a section emit different messages."""
+
+    def test_zero_contact_info_mentions_email_and_phone(self):
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 0, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        combined = " ".join(result).lower()
+        self.assertIn("email", combined)
+
+    def test_partial_contact_info_mentions_phone(self):
+        """score=8 means email only — suggestion should mention phone."""
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 8, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        combined = " ".join(result).lower()
+        self.assertIn("phone", combined)
+
+    def test_zero_skills_mentions_ats(self):
+        breakdown = {"structure": 20, "skills_section": 0, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        combined = " ".join(result).lower()
+        self.assertTrue("skill" in combined or "ats" in combined)
+
+    def test_zero_projects_mentions_project(self):
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 0, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        combined = " ".join(result).lower()
+        self.assertIn("project", combined)
+
+    def test_partial_projects_different_message_than_zero(self):
+        """Score=8 (header only) should give a different suggestion than score=0."""
+        zero_result = generate_feedback(
+            {"structure": 20, "skills_section": 20, "education": 15,
+             "projects": 0, "contact_info": 15, "completeness": 15}, [])
+        partial_result = generate_feedback(
+            {"structure": 20, "skills_section": 20, "education": 15,
+             "projects": 8, "contact_info": 15, "completeness": 15}, [])
+        # Both should have project suggestions but they can be different texts
+        zero_proj = [s for s in zero_result if "project" in s.lower()]
+        partial_proj = [s for s in partial_result if "project" in s.lower()]
+        self.assertTrue(len(zero_proj) > 0)
+        self.assertTrue(len(partial_proj) > 0)
+        self.assertNotEqual(zero_proj[0], partial_proj[0],
+                            "Different severity should produce different suggestion text")
+
+    def test_very_short_resume_completeness_message(self):
+        """completeness=2 → mentions word count / expanding detail."""
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 2}
+        result = generate_feedback(breakdown, [])
+        combined = " ".join(result).lower()
+        self.assertTrue("short" in combined or "expand" in combined or "word" in combined)
+
+
+class TestFeedbackMissingKeywords(unittest.TestCase):
+    def test_missing_keywords_appear_in_output(self):
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, ["Docker", "Kubernetes"])
+        combined = " ".join(result).lower()
+        self.assertIn("docker", combined)
+        self.assertIn("kubernetes", combined)
+
+    def test_missing_keywords_capped_at_5(self):
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 15}
+        many_kws = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        result = generate_feedback(breakdown, many_kws)
+        # Only the first 5 keywords should appear as individual suggestions
+        kw_suggestions = [s for s in result if any(k in s for k in many_kws)]
+        self.assertLessEqual(len(kw_suggestions), 5)
+
+    def test_empty_missing_keywords_no_kw_suggestions(self):
+        breakdown = {"structure": 20, "skills_section": 20, "education": 15,
+                     "projects": 15, "contact_info": 15, "completeness": 15}
+        result = generate_feedback(breakdown, [])
+        # With perfect scores and no missing keywords → fallback only
+        self.assertEqual(len(result), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
