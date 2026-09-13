@@ -1,5 +1,5 @@
 """
-Unit tests for resume_analyzer/scorer.py
+Unit tests for resume_analyzer/scorer.py and resume_analyzer/ats_checker.py
 Run with: python -m pytest tests/ -v
 """
 import sys
@@ -10,6 +10,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from resume_analyzer.scorer import score_resume
+from resume_analyzer.ats_checker import check_ats, _load_synonyms
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -192,6 +193,160 @@ class TestFullResume(unittest.TestCase):
         result = score_resume(FULL_RESUME)
         for key, val in result["breakdown"].items():
             self.assertGreater(val, 0, f"Expected {key} > 0 for full resume, got {val}")
+
+
+# ===========================================================================
+# ATS Checker Tests
+# ===========================================================================
+
+class TestCheckAtsReturnShape(unittest.TestCase):
+    """Return value contract must always hold."""
+
+    REQUIRED_KEYS = {"ats_score", "matched_keywords", "missing_keywords"}
+
+    def test_known_role_has_all_keys(self):
+        result = check_ats("Python SQL Pandas NumPy Excel", "Data Analyst")
+        self.assertEqual(set(result.keys()), self.REQUIRED_KEYS)
+
+    def test_unknown_role_returns_zeros(self):
+        result = check_ats("Python SQL", "Nonexistent Role")
+        self.assertEqual(result["ats_score"], 0)
+        self.assertEqual(result["matched_keywords"], [])
+        self.assertEqual(result["missing_keywords"], [])
+
+    def test_score_is_integer_between_0_and_100(self):
+        result = check_ats("Python Machine Learning", "AI Engineer")
+        self.assertIsInstance(result["ats_score"], int)
+        self.assertGreaterEqual(result["ats_score"], 0)
+        self.assertLessEqual(result["ats_score"], 100)
+
+    def test_matched_plus_missing_equals_all_keywords(self):
+        result = check_ats("Python SQL Tableau", "Data Analyst")
+        total = len(result["matched_keywords"]) + len(result["missing_keywords"])
+        from resume_analyzer.ats_checker import _load_role_keywords
+        expected = len(_load_role_keywords()["Data Analyst"])
+        self.assertEqual(total, expected)
+
+
+class TestAtsDirectMatch(unittest.TestCase):
+    """Original baseline — direct substring — must still work."""
+
+    def test_exact_keyword_matched(self):
+        result = check_ats("I have experience with Python and SQL.", "Data Analyst")
+        self.assertIn("Python", result["matched_keywords"])
+        self.assertIn("SQL", result["matched_keywords"])
+
+    def test_case_insensitive_match(self):
+        result = check_ats("proficient in PYTHON and sql", "Data Analyst")
+        self.assertIn("Python", result["matched_keywords"])
+        self.assertIn("SQL", result["matched_keywords"])
+
+
+class TestAtsSynonymMatching(unittest.TestCase):
+    """Synonym map must let abbreviations count as matches."""
+
+    def test_js_matches_javascript(self):
+        """Resume says 'JS'; keyword is 'JavaScript'."""
+        result = check_ats(
+            "Skills: JS, React, Node.js, CSS, HTML, Git, REST API, MongoDB, Responsive Design, TypeScript",
+            "Web Developer"
+        )
+        self.assertIn("JavaScript", result["matched_keywords"],
+                      "'JS' in resume should match canonical keyword 'JavaScript'")
+
+    def test_ml_matches_machine_learning(self):
+        """Resume says 'ML'; keyword is 'Machine Learning'."""
+        result = check_ats(
+            "Python ML TensorFlow PyTorch NLP Scikit-learn Deep Learning Data Preprocessing Model Deployment Pandas",
+            "AI Engineer"
+        )
+        self.assertIn("Machine Learning", result["matched_keywords"],
+                      "'ML' in resume should match 'Machine Learning'")
+
+    def test_k8s_matches_kubernetes(self):
+        """Resume says 'K8s'; keyword is 'Kubernetes'."""
+        result = check_ats(
+            "AWS Azure GCP Docker K8s CI/CD Terraform Linux Cloud Security Networking",
+            "Cloud Engineer"
+        )
+        self.assertIn("Kubernetes", result["matched_keywords"],
+                      "'K8s' should match 'Kubernetes'")
+
+    def test_nodejs_alias_matches(self):
+        """Resume uses 'NodeJS'; keyword is 'Node.js'."""
+        result = check_ats(
+            "HTML CSS JavaScript React NodeJS REST API Git Responsive Design TypeScript MongoDB",
+            "Web Developer"
+        )
+        self.assertIn("Node.js", result["matched_keywords"],
+                      "'NodeJS' should match 'Node.js'")
+
+    def test_sklearn_matches_scikit_learn(self):
+        """Resume says 'sklearn'; keyword is 'Scikit-learn'."""
+        result = check_ats(
+            "Python Machine Learning TensorFlow PyTorch NLP sklearn Deep Learning Data Preprocessing Model Deployment Pandas",
+            "AI Engineer"
+        )
+        self.assertIn("Scikit-learn", result["matched_keywords"],
+                      "'sklearn' should match 'Scikit-learn'")
+
+    def test_powerbi_alias(self):
+        """Resume uses 'PowerBI'; keyword is 'Power BI'."""
+        result = check_ats(
+            "SQL Excel Python PowerBI Tableau Statistics Data Visualization Pandas NumPy A/B Testing",
+            "Data Analyst"
+        )
+        self.assertIn("Power BI", result["matched_keywords"],
+                      "'PowerBI' should match 'Power BI'")
+
+
+class TestAtsFuzzyMatching(unittest.TestCase):
+    """difflib fuzzy matching should catch close misspellings / casing variants."""
+
+    def test_tensorflow_casing_variant(self):
+        """'Tensorflow' (wrong case) should fuzzy-match 'TensorFlow'."""
+        result = check_ats(
+            "Python Machine Learning Tensorflow PyTorch NLP Scikit-learn Deep Learning Data Preprocessing Model Deployment Pandas",
+            "AI Engineer"
+        )
+        self.assertIn("TensorFlow", result["matched_keywords"],
+                      "'Tensorflow' should fuzzy-match 'TensorFlow'")
+
+    def test_synonyms_json_loaded(self):
+        """synonyms.json must be loadable and non-empty."""
+        syns = _load_synonyms()
+        self.assertGreater(len(syns), 0, "synonyms.json should have entries")
+        self.assertIn("JavaScript", syns, "'JavaScript' must be a canonical entry")
+        self.assertIn("js", syns["JavaScript"], "'js' must be a synonym of 'JavaScript'")
+
+
+class TestAtsPluralStemming(unittest.TestCase):
+    """Plural/gerund variants in the resume should still count as matches."""
+
+    def test_visualization_plural_matches_data_visualization(self):
+        """Resume has 'visualizations'; keyword is 'Data Visualization'."""
+        result = check_ats(
+            "SQL Excel Python Power BI Tableau Statistics visualizations Pandas NumPy A/B Testing",
+            "Data Analyst"
+        )
+        self.assertIn("Data Visualization", result["matched_keywords"],
+                      "Plural 'visualizations' should match 'Data Visualization'")
+
+
+class TestAtsFullRoleCoverage(unittest.TestCase):
+    """A resume that explicitly lists all role keywords should score 100."""
+
+    def test_full_match_web_developer(self):
+        text = "HTML CSS JavaScript React Node.js REST API Git Responsive Design TypeScript MongoDB"
+        result = check_ats(text, "Web Developer")
+        self.assertEqual(result["ats_score"], 100,
+                         "All keywords present verbatim — expect 100% ATS score")
+        self.assertEqual(result["missing_keywords"], [])
+
+    def test_full_match_cloud_engineer(self):
+        text = "AWS Azure GCP Docker Kubernetes CI/CD Terraform Linux Cloud Security Networking"
+        result = check_ats(text, "Cloud Engineer")
+        self.assertEqual(result["ats_score"], 100)
 
 
 if __name__ == "__main__":
